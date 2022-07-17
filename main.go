@@ -86,6 +86,9 @@ func main() {
 
 	os.Chdir(dailyprogDir)
 
+	goModFn := filepath.Join(dailyprogDir, "go.mod")
+	_ = os.Remove(goModFn)
+
 	modName := "dummy/dailyprog-" + dateDir
 	// Execute go mod init dummy/dailyprog-yyyymmdd
 	_, err = exec.Command("go", "mod", "init", modName).Output()
