@@ -12,7 +12,7 @@ It does the following:
 
 To install **dailyprog** from source:
 * Install [Go](https://go.dev/dl/)
-* Execute (in a shell windows): ```go install github.com/524D/dailyprog@latest```
+* Execute (in a shell window): ```go install github.com/524D/dailyprog@latest```
 
 The ```dailyprog``` executable will now be in ```<homedirectory>/go/bin/dailyprog```
 
