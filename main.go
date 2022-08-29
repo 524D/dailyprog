@@ -101,7 +101,7 @@ func main() {
 		log.Fatal(err)
 	}
 	// Open VS code
-	_, err = exec.Command("code", "-n", dailyprogDir).Output()
+	_, err = exec.Command("code", "--disable-workspace-trust", "-n", dailyprogDir, dailyprogDirMain).Output()
 	if err != nil {
 		log.Fatal(err)
 	}
