@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -14,6 +15,7 @@ import (
 // * Open new folder in Visual Studio Code
 
 const baseDir = "dailyprog"
+const maxVers = 1000 // Maximum number of verion directories to create
 
 func main() {
 	mainTemplate := `package main
@@ -49,6 +51,17 @@ func main() {
 	homeDir := filepath.ToSlash(homeDirNative)
 	dateDir := time.Now().Format("20060102")
 	dailyprogDir := filepath.Join(homeDir, baseDir, dateDir)
+	// Check if dir existst, and continue to append a version string until we have a non-existing dir
+	vers := 0
+	versStr := ""
+	for _, err := os.Stat(dailyprogDir + versStr); !os.IsNotExist(err); _, err = os.Stat(dailyprogDir + versStr) {
+		if vers > maxVers {
+			log.Fatalln("All directories " + dailyprogDir + " to " + dailyprogDir + versStr + " seem to exist, quitting.")
+		}
+		vers++
+		versStr = "-" + strconv.Itoa(vers)
+	}
+	dailyprogDir = dailyprogDir + versStr
 	vsCodeDir := filepath.Join(dailyprogDir, ".vscode")
 	err = os.MkdirAll(vsCodeDir, os.ModePerm) // Also creates dailyprogDir
 	if err != nil {
