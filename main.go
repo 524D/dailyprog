@@ -6,7 +6,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
+
+	flag "github.com/spf13/pflag"
 )
 
 // This program executes the fixed actions for starting a "program of teh day"
@@ -14,11 +17,8 @@ import (
 // * create the standard files to get going (for go: main.go, go.mod, go.sum, vscode debug launch fiule)
 // * Open new folder in Visual Studio Code
 
-const baseDir = "dailyprog"
-const maxVers = 1000 // Maximum number of verion directories to create
-
-func main() {
-	mainTemplate := `package main
+// Golang code for program that is created
+const mainTemplate = `package main
 
 import (
 	"fmt"
@@ -28,7 +28,9 @@ func main() {
 	fmt.Println("Hello world!")
 }	
 `
-	launchJSON := `{
+
+// VS Code launch file
+const launchJSON = `{
     // Use IntelliSense to learn about possible attributes.
     // Hover to view descriptions of existing attributes.
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
@@ -44,13 +46,45 @@ func main() {
     ]
 }
 `
+
+const maxVers = 1000 // Maximum number of verion directories to create
+
+type options struct {
+	verbose bool
+	version bool
+	dir     string
+}
+
+var opt options
+
+func init() {
+	flag.BoolVarP(&opt.verbose, "verbose", "v", false, "Show what's being done")
+	flag.BoolVarP(&opt.version, "version", "V", false, "Print version and exit")
+	flag.StringVarP(&opt.dir, "dir", "d", "~/dailyprog", "Base directory name where new program is created.")
+}
+
+func main() {
+	flag.Parse()
 	homeDirNative, err := os.UserHomeDir()
 	if err != nil {
 		log.Fatalln("Can't get name of home directory:", err)
 	}
 	homeDir := filepath.ToSlash(homeDirNative)
-	dateDir := time.Now().Format("20060102")
-	dailyprogDir := filepath.Join(homeDir, baseDir, dateDir)
+	dateStr := time.Now().Format("20060102")
+
+	dailyDir := strings.Replace(opt.dir, "~", homeDir, 1)
+	if len(flag.Args()) > 0 {
+		for _, a := range flag.Args() {
+			dailyprogDir := filepath.Join(dailyDir, dateStr+"-"+a)
+			createDailyProg(dailyprogDir, a)
+		}
+	} else {
+		dailyprogDir := filepath.Join(dailyDir, "dailyprog-"+dateStr)
+		createDailyProg(dailyprogDir, "dailyprog-"+dateStr)
+	}
+}
+
+func createDailyProg(dailyprogDir string, progName string) error {
 	// Check if dir existst, and continue to append a version string until we have a non-existing dir
 	vers := 0
 	versStr := ""
@@ -63,7 +97,7 @@ func main() {
 	}
 	dailyprogDir = dailyprogDir + versStr
 	vsCodeDir := filepath.Join(dailyprogDir, ".vscode")
-	err = os.MkdirAll(vsCodeDir, os.ModePerm) // Also creates dailyprogDir
+	err := os.MkdirAll(vsCodeDir, os.ModePerm) // Also creates dailyprogDir
 	if err != nil {
 		log.Fatalln("Can't create directory:", err)
 	}
@@ -102,7 +136,7 @@ func main() {
 	goModFn := filepath.Join(dailyprogDir, "go.mod")
 	_ = os.Remove(goModFn)
 
-	modName := "dummy/dailyprog-" + dateDir
+	modName := "dummy/" + progName
 	// Execute go mod init dummy/dailyprog-yyyymmdd
 	_, err = exec.Command("go", "mod", "init", modName).Output()
 	if err != nil {
@@ -118,4 +152,5 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	return nil
 }
