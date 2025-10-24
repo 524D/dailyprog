@@ -12,7 +12,7 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
-// This program executes the fixed actions for starting a "program of teh day"
+// This program executes the fixed actions for starting a "program of the day"
 // * create a directory named prog_of_the_day/yyyymmdd
 // * create the standard files to get going (for go: main.go, go.mod, go.sum, vscode debug launch fiule)
 // * Open new folder in Visual Studio Code
@@ -47,7 +47,7 @@ const launchJSON = `{
 }
 `
 
-const maxVers = 1000 // Maximum number of verion directories to create
+const maxVers = 1000 // Maximum number of version directories to create
 
 type options struct {
 	verbose bool
@@ -85,7 +85,7 @@ func main() {
 }
 
 func createDailyProg(dailyprogDir string, progName string) error {
-	// Check if dir existst, and continue to append a version string until we have a non-existing dir
+	// Check if dir exists, and continue to append a version string until we have a non-existing dir
 	vers := 0
 	versStr := ""
 	for _, err := os.Stat(dailyprogDir + versStr); !os.IsNotExist(err); _, err = os.Stat(dailyprogDir + versStr) {
