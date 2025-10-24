@@ -1,0 +1,39 @@
+{
+    "language": [
+        {"go": {
+            "steps": [
+                {"rm" : "go.mod"},
+                {"exec": ["go", "mod", "init", "dummy/{{.ProgName}}"]},
+                {"exec": ["go", "mod", "tidy"]}
+            ]
+        } },
+        {"R": {}}
+
+    ],
+    "tools": [
+        {
+            "name": "vscode",
+            "fullname": "Visual Studio Code",
+            "exename": "code",
+            "downloadURL": "https://code.visualstudio.com/download"
+        },
+        {
+            "name": "go",
+            "fullname": "Go",
+            "exename": "go",
+            "downloadURL": "https://go.dev/dl/"
+        },
+        {
+            "name": "R",
+            "fullname": "R",
+            "exename": "R",
+            "downloadURL": "https://cran.r-project.org/bin/"
+        },
+        {
+            "name": "RStudio",
+            "fullname": "RStudio",
+            "exename": "/usr/lib/rstudio/bin/rstudio",
+            "downloadURL": "https://www.rstudio.com/products/rstudio/download/#download"
+        }
+    ]
+}

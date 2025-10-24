@@ -1,0 +1,118 @@
+{
+  "languages": {
+    "go": {
+      "name": "Go",
+      "fileExtension": ".go",
+      "templates": {
+        "basic": {
+          "name": "Basic Hello World",
+          "description": "Simple Hello World program",
+          "files": [
+            {
+              "source": "go/basic/main.go",
+              "dest": "main.go"
+            },
+            {
+              "source": "go/basic/.vscode/launch.json",
+              "dest": ".vscode/launch.json"
+            }
+          ],
+          "postCreateSteps": [
+            {"type": "remove", "path": "go.mod"},
+            {"type": "exec", "command": ["go", "mod", "init", "dummy/{{.ProgName}}"]},
+            {"type": "exec", "command": ["go", "mod", "tidy"]}
+          ]
+        },
+        "webserver": {
+          "name": "HTTP Web Server",
+          "description": "Basic HTTP web server using net/http",
+          "files": [
+            {
+              "source": "go/webserver/main.go",
+              "dest": "main.go"
+            },
+            {
+              "source": "go/webserver/.vscode/launch.json",
+              "dest": ".vscode/launch.json"
+            }
+          ],
+          "postCreateSteps": [
+            {"type": "remove", "path": "go.mod"},
+            {"type": "exec", "command": ["go", "mod", "init", "dummy/{{.ProgName}}"]},
+            {"type": "exec", "command": ["go", "mod", "tidy"]}
+          ]
+        }
+      }
+    },
+    "python": {
+      "name": "Python",
+      "fileExtension": ".py",
+      "templates": {
+        "basic": {
+          "name": "Basic Python Script",
+          "description": "Simple Python script",
+          "files": [
+            {
+              "source": "python/basic/main.py",
+              "dest": "main.py"
+            },
+            {
+              "source": "python/basic/.vscode/launch.json",
+              "dest": ".vscode/launch.json"
+            }
+          ],
+          "postCreateSteps": []
+        },
+        "flask": {
+          "name": "Flask Web Application",
+          "description": "Basic Flask web application",
+          "files": [
+            {
+              "source": "python/flask/app.py",
+              "dest": "app.py"
+            },
+            {
+              "source": "python/flask/requirements.txt",
+              "dest": "requirements.txt"
+            },
+            {
+              "source": "python/flask/.vscode/launch.json",
+              "dest": ".vscode/launch.json"
+            }
+          ],
+          "postCreateSteps": [
+            {"type": "exec", "command": ["python3", "-m", "venv", "venv"]},
+            {"type": "exec", "command": ["./venv/bin/pip", "install", "-r", "requirements.txt"]}
+          ]
+        }
+      }
+    },
+    "rust": {
+      "name": "Rust",
+      "fileExtension": ".rs",
+      "templates": {
+        "basic": {
+          "name": "Basic Rust Program",
+          "description": "Simple Rust program",
+          "files": [
+            {
+              "source": "rust/basic/main.rs",
+              "dest": "src/main.rs"
+            },
+            {
+              "source": "rust/basic/Cargo.toml",
+              "dest": "Cargo.toml"
+            },
+            {
+              "source": "rust/basic/.vscode/launch.json",
+              "dest": ".vscode/launch.json"
+            }
+          ],
+          "postCreateSteps": [
+            {"type": "exec", "command": ["cargo", "build"]}
+          ]
+        }
+      }
+    }
+  }
+}
