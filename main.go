@@ -82,37 +82,6 @@ type Language struct {
 type TemplatesConfig struct {
 	Languages map[string]Language `json:"languages"`
 }
-
-// Golang code for program that is created (kept for backward compatibility)
-const mainTemplate = `package main
-
-import (
-	"fmt"
-)
-	
-func main() {
-	fmt.Println("Hello world!")
-}	
-`
-
-// VS Code launch file (kept for backward compatibility)
-const launchJSON = `{
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Launch Package",
-            "type": "go",
-            "request": "launch",
-            "mode": "auto",
-            "program": "${fileDirname}"
-        }
-    ]
-}
-`
-
 type options struct {
 	verbose          bool
 	version          bool
@@ -129,7 +98,53 @@ type options struct {
 
 var opt options
 
+func printUsage() {
+	fmt.Println("dailyprog - Quickly scaffold new programming projects with pre-configured templates")
+	fmt.Println()
+	fmt.Println("USAGE:")
+	fmt.Println("  dailyprog [OPTIONS] [PROJECT_NAME...]")
+	fmt.Println()
+	fmt.Println("DESCRIPTION:")
+	fmt.Println("  Creates a new project directory with template files for your chosen language.")
+	fmt.Println("  Projects are organized by date (YYYYMMDD-projectname) in ~/dailyprog/")
+	fmt.Println("  Automatically opens the project in VS Code when complete.")
+	fmt.Println()
+	fmt.Println("OPTIONS:")
+	flag.PrintDefaults()
+	fmt.Println()
+	fmt.Println("EXAMPLES:")
+	fmt.Println("  # Create a Go project with default settings")
+	fmt.Println("  dailyprog myproject")
+	fmt.Println()
+	fmt.Println("  # Create with custom author")
+	fmt.Println("  dailyprog --author \"Alice Smith\" myproject")
+	fmt.Println()
+	fmt.Println("  # Create a Python Flask web app")
+	fmt.Println("  dailyprog --lang python --template flask mywebapp")
+	fmt.Println()
+	fmt.Println("  # Create a Rust project")
+	fmt.Println("  dailyprog --lang rust myrust")
+	fmt.Println()
+	fmt.Println("  # List all available templates")
+	fmt.Println("  dailyprog --list")
+	fmt.Println()
+	fmt.Println("  # Generate customizable template directory")
+	fmt.Println("  dailyprog --generate-template ./my-templates")
+	fmt.Println()
+	fmt.Println("  # Use custom templates")
+	fmt.Println("  dailyprog --templates ./my-templates/templates.json \\")
+	fmt.Println("            --user-config ./my-templates/user-config.json myproject")
+	fmt.Println()
+	fmt.Println("AVAILABLE LANGUAGES:")
+	fmt.Println("  go      - Go programming language (templates: basic, webserver)")
+	fmt.Println("  python  - Python (templates: basic, flask)")
+	fmt.Println("  rust    - Rust (templates: basic)")
+	fmt.Println()
+	fmt.Println("For more information, visit: https://github.com/524D/dailyprog")
+}
+
 func init() {
+	flag.Usage = printUsage
 	flag.BoolVarP(&opt.verbose, "verbose", "v", false, "Show what's being done")
 	flag.BoolVarP(&opt.version, "version", "V", false, "Print version and exit")
 	flag.StringVarP(&opt.dir, "dir", "d", "~/dailyprog", "Base directory name where new program is created.")
