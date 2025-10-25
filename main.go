@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"os"
 	"os/exec"
@@ -19,6 +20,7 @@ import (
 )
 
 //go:embed _buildin
+//go:embed _buildin/templates/*/*/.vscode/*
 var embeddedFS embed.FS
 
 // This program executes the fixed actions for starting a "program of the day"
@@ -111,14 +113,15 @@ const launchJSON = `{
 `
 
 type options struct {
-	verbose        bool
-	version        bool
-	dir            string
-	templatesFile  string
-	userConfigFile string
-	language       string
-	templateName   string
-	list           bool
+	verbose          bool
+	version          bool
+	dir              string
+	templatesFile    string
+	userConfigFile   string
+	language         string
+	templateName     string
+	list             bool
+	generateTemplate string
 }
 
 var opt options
@@ -132,6 +135,7 @@ func init() {
 	flag.StringVarP(&opt.language, "lang", "l", "go", "Programming language to use (e.g., go, python, rust)")
 	flag.StringVarP(&opt.templateName, "template", "T", "basic", "Template to use (e.g., basic, webserver, flask)")
 	flag.BoolVar(&opt.list, "list", false, "List available languages and templates")
+	flag.StringVarP(&opt.generateTemplate, "generate-template", "g", "", "Generate template directory at specified path (e.g., ./my-templates)")
 }
 
 // readConfigFile reads a config file from filesystem or embedded FS
@@ -165,23 +169,108 @@ func readConfigFile(path string) ([]byte, error) {
 	return data, nil
 }
 
-// readTemplateFile reads a template file from embedded FS
-func readTemplateFile(relativePath string) ([]byte, error) {
-	// Template files are always read from embedded FS
+// readTemplateFile reads a template file from embedded FS or filesystem
+func readTemplateFile(relativePath string, templatesBasePath string) ([]byte, error) {
+	// If a custom templates path is provided, try to read from filesystem first
+	if templatesBasePath != "" {
+		fullPath := filepath.Join(templatesBasePath, "templates", relativePath)
+		if data, err := os.ReadFile(fullPath); err == nil {
+			return data, nil
+		}
+	}
+
+	// Otherwise, read from embedded FS
 	fullPath := filepath.Join("_buildin", "templates", relativePath)
 	// Normalize path for embedded FS (use forward slashes)
 	fullPath = filepath.ToSlash(fullPath)
 
 	data, err := embeddedFS.ReadFile(fullPath)
 	if err != nil {
-		return nil, fmt.Errorf("can't read embedded template file %s: %w", fullPath, err)
+		return nil, fmt.Errorf("can't read template file %s: %w", fullPath, err)
 	}
 
 	return data, nil
 }
 
+// generateTemplateDirectory extracts all embedded templates to a directory
+func generateTemplateDirectory(targetPath string) error {
+	// Create the target directory
+	if err := os.MkdirAll(targetPath, 0755); err != nil {
+		return fmt.Errorf("can't create target directory: %w", err)
+	}
+
+	// Walk through the embedded _buildin directory
+	err := fs.WalkDir(embeddedFS, "_buildin", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Calculate the relative path from _buildin
+		relPath, err := filepath.Rel("_buildin", path)
+		if err != nil {
+			return err
+		}
+
+		// Skip the root _buildin directory itself
+		if relPath == "." {
+			return nil
+		}
+
+		// Create the target path
+		targetFilePath := filepath.Join(targetPath, relPath)
+
+		if d.IsDir() {
+			// Create directory
+			if err := os.MkdirAll(targetFilePath, 0755); err != nil {
+				return fmt.Errorf("can't create directory %s: %w", targetFilePath, err)
+			}
+			if opt.verbose {
+				fmt.Printf("Created directory: %s\n", targetFilePath)
+			}
+		} else {
+			// Read file from embedded FS
+			content, err := embeddedFS.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("can't read embedded file %s: %w", path, err)
+			}
+
+			// Write file to target
+			if err := os.WriteFile(targetFilePath, content, 0644); err != nil {
+				return fmt.Errorf("can't write file %s: %w", targetFilePath, err)
+			}
+			if opt.verbose {
+				fmt.Printf("Created file: %s\n", targetFilePath)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("error walking embedded filesystem: %w", err)
+	}
+
+	return nil
+}
+
 func main() {
 	flag.Parse()
+
+	// Handle --generate-template flag
+	if opt.generateTemplate != "" {
+		if opt.verbose {
+			fmt.Printf("Generating template directory at: %s\n", opt.generateTemplate)
+		}
+		if err := generateTemplateDirectory(opt.generateTemplate); err != nil {
+			log.Fatalf("Error generating template directory: %v\n", err)
+		}
+		fmt.Printf("Template directory successfully generated at: %s\n", opt.generateTemplate)
+		fmt.Println("\nYou can now:")
+		fmt.Printf("  1. Modify the templates in: %s/templates/\n", opt.generateTemplate)
+		fmt.Printf("  2. Edit configuration files: %s/templates.json and %s/user-config.json\n", opt.generateTemplate, opt.generateTemplate)
+		fmt.Printf("  3. Use them with: dailyprog --templates %s/templates.json --user-config %s/user-config.json\n", opt.generateTemplate, opt.generateTemplate)
+		return
+	}
 
 	// Use embedded config files if paths not specified
 	templatesPath := opt.templatesFile
@@ -203,6 +292,12 @@ func main() {
 	userConfig, err := loadUserConfig(userConfigPath)
 	if err != nil {
 		log.Fatalln("Error loading user config:", err)
+	}
+
+	// Determine the templates base directory (parent directory of templates.json if specified)
+	var templatesBasePath string
+	if opt.templatesFile != "" {
+		templatesBasePath = filepath.Dir(opt.templatesFile)
 	}
 
 	// Handle --list flag
@@ -233,11 +328,11 @@ func main() {
 	if len(flag.Args()) > 0 {
 		for _, a := range flag.Args() {
 			dailyprogDir := filepath.Join(dailyDir, dateStr+"-"+a)
-			createDailyProg(dailyprogDir, a, templatesConfig, userConfig)
+			createDailyProg(dailyprogDir, a, templatesConfig, userConfig, templatesBasePath)
 		}
 	} else {
 		dailyprogDir := filepath.Join(dailyDir, "dailyprog-"+dateStr)
-		createDailyProg(dailyprogDir, "dailyprog-"+dateStr, templatesConfig, userConfig)
+		createDailyProg(dailyprogDir, "dailyprog-"+dateStr, templatesConfig, userConfig, templatesBasePath)
 	}
 }
 
@@ -288,7 +383,7 @@ func listTemplates(config *TemplatesConfig) {
 	fmt.Println("\nUsage: dailyprog --lang <language> --template <template> [name]")
 }
 
-func createDailyProg(dailyprogDir string, progName string, templatesConfig *TemplatesConfig, userConfig *UserConfig) error {
+func createDailyProg(dailyprogDir string, progName string, templatesConfig *TemplatesConfig, userConfig *UserConfig, templatesBasePath string) error {
 	// Check if dir exists, and continue to append a version string until we have a non-existing dir
 	vers := 0
 	versStr := ""
@@ -331,8 +426,8 @@ func createDailyProg(dailyprogDir string, progName string, templatesConfig *Temp
 			return fmt.Errorf("can't create directory %s: %w", destDir, err)
 		}
 
-		// Read template file from embedded FS
-		content, err := readTemplateFile(tf.Source)
+		// Read template file from embedded FS or filesystem
+		content, err := readTemplateFile(tf.Source, templatesBasePath)
 		if err != nil {
 			return fmt.Errorf("can't read template file %s: %w", tf.Source, err)
 		}
