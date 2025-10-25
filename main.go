@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +17,9 @@ import (
 
 	flag "github.com/spf13/pflag"
 )
+
+//go:embed _buildin
+var embeddedFS embed.FS
 
 // This program executes the fixed actions for starting a "program of the day"
 // * create a directory named prog_of_the_day/yyyymmdd
@@ -123,26 +127,72 @@ func init() {
 	flag.BoolVarP(&opt.verbose, "verbose", "v", false, "Show what's being done")
 	flag.BoolVarP(&opt.version, "version", "V", false, "Print version and exit")
 	flag.StringVarP(&opt.dir, "dir", "d", "~/dailyprog", "Base directory name where new program is created.")
-	flag.StringVarP(&opt.templatesFile, "templates", "t", "_buildin/templates.json", "Path to templates configuration file")
-	flag.StringVarP(&opt.userConfigFile, "user-config", "u", "_buildin/user-config.json", "Path to user configuration file")
+	flag.StringVarP(&opt.templatesFile, "templates", "t", "", "Path to templates configuration file (uses embedded if not specified)")
+	flag.StringVarP(&opt.userConfigFile, "user-config", "u", "", "Path to user configuration file (uses embedded if not specified)")
 	flag.StringVarP(&opt.language, "lang", "l", "go", "Programming language to use (e.g., go, python, rust)")
 	flag.StringVarP(&opt.templateName, "template", "T", "basic", "Template to use (e.g., basic, webserver, flask)")
 	flag.BoolVar(&opt.list, "list", false, "List available languages and templates")
 }
 
+// readConfigFile reads a config file from filesystem or embedded FS
+func readConfigFile(path string) ([]byte, error) {
+	// If path is provided and exists on filesystem, use it
+	if path != "" {
+		if data, err := os.ReadFile(path); err == nil {
+			return data, nil
+		}
+	}
+
+	// Otherwise, use embedded filesystem
+	var embeddedPath string
+	if path == "" || strings.HasPrefix(path, "_buildin/") {
+		embeddedPath = path
+	} else {
+		// If a path was provided but not found, still try embedded as fallback
+		embeddedPath = path
+	}
+
+	// Default to embedded paths if none specified
+	if embeddedPath == "" {
+		return nil, fmt.Errorf("no path specified and no default available")
+	}
+
+	data, err := embeddedFS.ReadFile(embeddedPath)
+	if err != nil {
+		return nil, fmt.Errorf("file not found in filesystem or embedded FS: %w", err)
+	}
+
+	return data, nil
+}
+
+// readTemplateFile reads a template file from embedded FS
+func readTemplateFile(relativePath string) ([]byte, error) {
+	// Template files are always read from embedded FS
+	fullPath := filepath.Join("_buildin", "templates", relativePath)
+	// Normalize path for embedded FS (use forward slashes)
+	fullPath = filepath.ToSlash(fullPath)
+
+	data, err := embeddedFS.ReadFile(fullPath)
+	if err != nil {
+		return nil, fmt.Errorf("can't read embedded template file %s: %w", fullPath, err)
+	}
+
+	return data, nil
+}
+
 func main() {
 	flag.Parse()
 
-	// Get executable directory to resolve relative paths
-	exePath, err := os.Executable()
-	if err != nil {
-		log.Fatalln("Can't get executable path:", err)
+	// Use embedded config files if paths not specified
+	templatesPath := opt.templatesFile
+	if templatesPath == "" {
+		templatesPath = "_buildin/templates.json"
 	}
-	exeDir := filepath.Dir(exePath)
 
-	// Resolve template and config file paths
-	templatesPath := resolveConfigPath(opt.templatesFile, exeDir)
-	userConfigPath := resolveConfigPath(opt.userConfigFile, exeDir)
+	userConfigPath := opt.userConfigFile
+	if userConfigPath == "" {
+		userConfigPath = "_buildin/user-config.json"
+	}
 
 	// Load configurations
 	templatesConfig, err := loadTemplatesConfig(templatesPath)
@@ -183,30 +233,17 @@ func main() {
 	if len(flag.Args()) > 0 {
 		for _, a := range flag.Args() {
 			dailyprogDir := filepath.Join(dailyDir, dateStr+"-"+a)
-			createDailyProg(dailyprogDir, a, templatesConfig, userConfig, exeDir)
+			createDailyProg(dailyprogDir, a, templatesConfig, userConfig)
 		}
 	} else {
 		dailyprogDir := filepath.Join(dailyDir, "dailyprog-"+dateStr)
-		createDailyProg(dailyprogDir, "dailyprog-"+dateStr, templatesConfig, userConfig, exeDir)
+		createDailyProg(dailyprogDir, "dailyprog-"+dateStr, templatesConfig, userConfig)
 	}
 }
 
-// resolveConfigPath resolves a config file path relative to executable if needed
-func resolveConfigPath(configPath, exeDir string) string {
-	if filepath.IsAbs(configPath) {
-		return configPath
-	}
-	// Try relative to current directory first
-	if _, err := os.Stat(configPath); err == nil {
-		return configPath
-	}
-	// Try relative to executable directory
-	return filepath.Join(exeDir, configPath)
-}
-
-// loadTemplatesConfig loads the templates configuration from JSON file
+// loadTemplatesConfig loads the templates configuration from JSON file or embedded FS
 func loadTemplatesConfig(path string) (*TemplatesConfig, error) {
-	data, err := os.ReadFile(path)
+	data, err := readConfigFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading templates file: %w", err)
 	}
@@ -219,9 +256,9 @@ func loadTemplatesConfig(path string) (*TemplatesConfig, error) {
 	return &config, nil
 }
 
-// loadUserConfig loads user configuration from JSON file
+// loadUserConfig loads user configuration from JSON file or embedded FS
 func loadUserConfig(path string) (*UserConfig, error) {
-	data, err := os.ReadFile(path)
+	data, err := readConfigFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading user config file: %w", err)
 	}
@@ -251,7 +288,7 @@ func listTemplates(config *TemplatesConfig) {
 	fmt.Println("\nUsage: dailyprog --lang <language> --template <template> [name]")
 }
 
-func createDailyProg(dailyprogDir string, progName string, templatesConfig *TemplatesConfig, userConfig *UserConfig, exeDir string) error {
+func createDailyProg(dailyprogDir string, progName string, templatesConfig *TemplatesConfig, userConfig *UserConfig) error {
 	// Check if dir exists, and continue to append a version string until we have a non-existing dir
 	vers := 0
 	versStr := ""
@@ -285,9 +322,7 @@ func createDailyProg(dailyprogDir string, progName string, templatesConfig *Temp
 	}
 
 	// Process each template file
-	templatesBaseDir := filepath.Join(exeDir, "_buildin", "templates")
 	for _, tf := range tmpl.Files {
-		sourcePath := filepath.Join(templatesBaseDir, tf.Source)
 		destPath := filepath.Join(dailyprogDir, tf.Dest)
 
 		// Create destination directory if needed
@@ -296,21 +331,21 @@ func createDailyProg(dailyprogDir string, progName string, templatesConfig *Temp
 			return fmt.Errorf("can't create directory %s: %w", destDir, err)
 		}
 
-		// Read template file
-		content, err := os.ReadFile(sourcePath)
+		// Read template file from embedded FS
+		content, err := readTemplateFile(tf.Source)
 		if err != nil {
-			return fmt.Errorf("can't read template file %s: %w", sourcePath, err)
+			return fmt.Errorf("can't read template file %s: %w", tf.Source, err)
 		}
 
 		// Process template
 		tmplParsed, err := template.New("file").Parse(string(content))
 		if err != nil {
-			return fmt.Errorf("can't parse template %s: %w", sourcePath, err)
+			return fmt.Errorf("can't parse template %s: %w", tf.Source, err)
 		}
 
 		var buf bytes.Buffer
 		if err := tmplParsed.Execute(&buf, templateData); err != nil {
-			return fmt.Errorf("can't execute template %s: %w", sourcePath, err)
+			return fmt.Errorf("can't execute template %s: %w", tf.Source, err)
 		}
 
 		// Write processed file
