@@ -6,10 +6,13 @@ A command-line tool for quickly scaffolding new programming projects with pre-co
 
 - 🚀 **Multi-Language Support** - Go, Python, and Rust templates included
 - 📝 **Multiple Templates** - Different project types per language (basic, webserver, flask, etc.)
-- ⚙️ **Configurable** - Customize templates and user information via JSON
-- 🔧 **Auto-Setup** - Runs initialization commands (go mod init, pip install, cargo build)
+- ⚙️ **Configurable** - Customize templates and user information via JSON or command-line flags
+- � **Embedded Templates** - All templates embedded in the binary - works anywhere
+- 🎨 **Template Generation** - Generate customizable template directories
+- �🔧 **Auto-Setup** - Runs initialization commands (go mod init, pip install, cargo build)
 - 💻 **VS Code Integration** - Automatically opens projects in VS Code
 - 📅 **Date-Based Organization** - Projects organized by date with version control
+- 👤 **Smart Defaults** - Uses current username when no config specified
 
 ## Quick Start
 
@@ -20,8 +23,11 @@ go build -o dailyprog main.go
 # List available templates
 ./dailyprog --list
 
-# Create a Go project (default)
+# Create a Go project (uses current username as author)
 ./dailyprog myproject
+
+# Create with custom author
+./dailyprog --author "Alice" myproject
 
 # Create a Python Flask web app
 ./dailyprog --lang python --template flask mywebapp
@@ -47,11 +53,15 @@ go build -o dailyprog main.go
    sudo mv dailyprog /usr/local/bin/
    ```
 
-4. Configure your user information:
+4. (Optional) Generate and customize templates:
 
    ```bash
-   nano _buildin/user-config.json
+   dailyprog --generate-template ./my-templates
+   # Edit files in ./my-templates/
+   dailyprog --templates ./my-templates/templates.json --user-config ./my-templates/user-config.json myproject
    ```
+
+**Note:** Templates are embedded in the binary, so the `_buildin` directory is not required for the compiled program to work.
 
 ### Using go install
 
@@ -80,15 +90,59 @@ go build -o dailyprog main.go
 When you run `dailyprog`, it:
 
 1. Creates a directory named `~/dailyprog/YYYYMMDD-projectname` (with version numbers if needed)
-2. Copies and processes template files with your personal information
-3. Runs initialization commands (go mod init, pip install, cargo build, etc.)
-4. Opens the new project in Visual Studio Code
+2. Copies and processes template files from embedded filesystem
+3. Substitutes template variables with your information (author, copyright, etc.)
+4. Runs initialization commands (go mod init, pip install, cargo build, etc.)
+5. Opens the new project in Visual Studio Code
 
 ## Configuration
 
-### User Configuration (`_buildin/user-config.json`)
+### Default Behavior (No Configuration Needed)
 
-Edit this file with your personal information:
+By default, `dailyprog` uses:
+
+- **Author**: Current logged-in username (from `$USER`)
+- **Copyright**: "Copyright (c) [YEAR] [USERNAME]. All rights reserved."
+- **Templates**: Embedded templates (Go, Python, Rust)
+
+### Command-Line Overrides
+
+Override settings on a per-project basis:
+
+```bash
+# Override author only
+dailyprog --author "Alice Smith" myproject
+
+# Override both author and copyright
+dailyprog --author "Bob Jones" --copyright "Copyright 2025 Acme Corp" myproject
+```
+
+### Custom Configuration Files
+
+Generate customizable configuration and templates:
+
+```bash
+# Generate template directory
+dailyprog --generate-template ./my-templates
+
+# This creates:
+# ./my-templates/
+#   ├── templates.json      # Template definitions
+#   ├── user-config.json    # User information
+#   └── templates/          # Template files
+#       ├── go/
+#       ├── python/
+#       └── rust/
+
+# Edit the files as needed, then use:
+dailyprog --templates ./my-templates/templates.json \
+          --user-config ./my-templates/user-config.json \
+          myproject
+```
+
+### User Configuration Format
+
+Edit `user-config.json` with your personal information:
 
 ```json
 {
@@ -99,11 +153,15 @@ Edit this file with your personal information:
 }
 ```
 
-This information will be automatically inserted into your template files.
+**Priority Order** (highest to lowest):
 
-### Templates Configuration (`_buildin/templates.json`)
+1. Command-line flags (`--author`, `--copyright`)
+2. Custom user-config file (`--user-config`)
+3. Current username (default when no config specified)
 
-Defines available languages and templates. See [IMPLEMENTATION.md](IMPLEMENTATION.md) for details on adding custom templates.
+### Templates Configuration
+
+The `templates.json` file defines available languages and templates. See [IMPLEMENTATION.md](IMPLEMENTATION.md) for details on adding custom templates.
 
 ## Command-Line Options
 
@@ -111,21 +169,30 @@ Defines available languages and templates. See [IMPLEMENTATION.md](IMPLEMENTATIO
 Usage: dailyprog [options] [project-name]
 
 Options:
-  -l, --lang string         Programming language (default: go)
-  -T, --template string     Template to use (default: basic)
-  -d, --dir string         Base directory (default: ~/dailyprog)
-  -t, --templates string   Templates config file (default: _buildin/templates.json)
-  -u, --user-config string User config file (default: _buildin/user-config.json)
-  -v, --verbose            Show detailed output
-  -V, --version            Print version
-      --list               List available languages and templates
+  -l, --lang string          Programming language (default: go)
+  -T, --template string      Template to use (default: basic)
+  -d, --dir string          Base directory (default: ~/dailyprog)
+  -t, --templates string    Templates config file (uses embedded if not specified)
+  -u, --user-config string  User config file (uses embedded if not specified)
+  -g, --generate-template   Generate template directory at specified path
+      --author string       Override author name
+      --copyright string    Override copyright text
+  -v, --verbose             Show detailed output
+  -V, --version             Print version
+      --list                List available languages and templates
 ```
 
 ## Examples
 
 ```bash
+# Create project with default settings (uses current username)
+./dailyprog myproject
+
 # Create multiple projects
 ./dailyprog project1 project2 project3
+
+# Create with custom author and copyright
+./dailyprog --author "Alice Smith" --copyright "MIT License" myapp
 
 # Create with custom directory
 ./dailyprog --dir ~/myprojects myapp
@@ -135,6 +202,14 @@ Options:
 
 # Create Go web server
 ./dailyprog --lang go --template webserver api-server
+
+# Generate customizable templates
+./dailyprog --generate-template ./custom-templates
+
+# Use custom templates
+./dailyprog --templates ./custom-templates/templates.json \
+            --user-config ./custom-templates/user-config.json \
+            myproject
 ```
 
 ## Documentation
@@ -154,13 +229,60 @@ Options:
 
 ## Contributing
 
-To add a new template:
+### Adding a New Template
 
-1. Edit `_buildin/templates.json`
-2. Create template files in `_buildin/templates/<language>/<template>/`
-3. Use Go template syntax (`{{.Variable}}`) for variable substitution
-4. Add post-create steps if needed
-5. Test with `./dailyprog --lang <language> --template <template> test`
+1. Generate a template directory:
+
+   ```bash
+   ./dailyprog --generate-template ./my-templates
+   ```
+
+2. Add your template files in `./my-templates/templates/<language>/<template>/`:
+
+   ```bash
+   mkdir -p ./my-templates/templates/go/mytemplate
+   # Add your template files here
+   ```
+
+3. Edit `./my-templates/templates.json` to define the new template:
+
+   ```json
+   {
+     "languages": {
+       "go": {
+         "templates": {
+           "mytemplate": {
+             "name": "My Custom Template",
+             "description": "Description of my template",
+             "files": [
+               {
+                 "source": "go/mytemplate/main.go",
+                 "dest": "main.go"
+               }
+             ],
+             "postCreateSteps": []
+           }
+         }
+       }
+     }
+   }
+   ```
+
+4. Use Go template syntax (`{{.Variable}}`) for variable substitution:
+   - `{{.ProgName}}` - Project name
+   - `{{.Author}}` - Author name
+   - `{{.Copyright}}` - Copyright text
+   - `{{.Email}}` - Email address
+   - `{{.Organization}}` - Organization name
+   - `{{.Date}}` - Current date (YYYY-MM-DD)
+
+5. Test your template:
+
+   ```bash
+   ./dailyprog --templates ./my-templates/templates.json \
+               --user-config ./my-templates/user-config.json \
+               --lang go --template mytemplate test
+   ```
 
 See [IMPLEMENTATION.md](IMPLEMENTATION.md) for detailed instructions.
 
