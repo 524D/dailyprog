@@ -373,8 +373,8 @@ func main() {
 			createDailyProg(dailyprogDir, a, templatesConfig, userConfig, templatesBasePath)
 		}
 	} else {
-		dailyprogDir := filepath.Join(dailyDir, "dailyprog-"+dateStr)
-		createDailyProg(dailyprogDir, "dailyprog-"+dateStr, templatesConfig, userConfig, templatesBasePath)
+		dailyprogDir := filepath.Join(dailyDir, dateStr+"-dailyprog")
+		createDailyProg(dailyprogDir, dateStr+"-dailyprog", templatesConfig, userConfig, templatesBasePath)
 	}
 }
 
