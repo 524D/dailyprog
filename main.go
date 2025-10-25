@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -122,6 +123,8 @@ type options struct {
 	templateName     string
 	list             bool
 	generateTemplate string
+	author           string
+	copyright        string
 }
 
 var opt options
@@ -136,6 +139,8 @@ func init() {
 	flag.StringVarP(&opt.templateName, "template", "T", "basic", "Template to use (e.g., basic, webserver, flask)")
 	flag.BoolVar(&opt.list, "list", false, "List available languages and templates")
 	flag.StringVarP(&opt.generateTemplate, "generate-template", "g", "", "Generate template directory at specified path (e.g., ./my-templates)")
+	flag.StringVar(&opt.author, "author", "", "Override author name from user-config")
+	flag.StringVar(&opt.copyright, "copyright", "", "Override copyright from user-config")
 }
 
 // readConfigFile reads a config file from filesystem or embedded FS
@@ -292,6 +297,28 @@ func main() {
 	userConfig, err := loadUserConfig(userConfigPath)
 	if err != nil {
 		log.Fatalln("Error loading user config:", err)
+	}
+
+	// Apply command-line overrides or defaults
+	if opt.author != "" {
+		userConfig.Author = opt.author
+	} else if opt.userConfigFile == "" && userConfig.Author == "Your Name" {
+		// No user-config file and no --author flag, use current user
+		currentUser, err := user.Current()
+		if err == nil && currentUser.Username != "" {
+			userConfig.Author = currentUser.Username
+		}
+	}
+
+	if opt.copyright != "" {
+		userConfig.Copyright = opt.copyright
+	} else if opt.userConfigFile == "" && strings.Contains(userConfig.Copyright, "Your Name") {
+		// No user-config file and no --copyright flag, use current user in copyright
+		currentUser, err := user.Current()
+		if err == nil && currentUser.Username != "" {
+			year := time.Now().Year()
+			userConfig.Copyright = fmt.Sprintf("Copyright (c) %d %s. All rights reserved.", year, currentUser.Username)
+		}
 	}
 
 	// Determine the templates base directory (parent directory of templates.json if specified)
