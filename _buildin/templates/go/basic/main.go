@@ -1,8 +1,7 @@
-// {{.Copyright}}package basic
-
-// Author: {{.Author}}
-
 package main
+
+// {{.Copyright}}
+// Author: {{.Author}}
 
 import (
 	"fmt"
